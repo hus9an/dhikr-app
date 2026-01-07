@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>بينك وبين الله - الذكر الجماعي</title>
+    <meta name="description" content="تطبيق الذكر الجماعي - شارك في الذكر مع المسلمين حول العالم">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap');
+        
+        * {
+            font-family: 'Cairo', sans-serif;
+        }
+        
+        body {
+            overflow-x: hidden;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <!-- React & Babel -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Mock Storage API for standalone deployment -->
+    <script>
+        // محاكاة التخزين للنشر المستقل
+        if (!window.storage) {
+            const storage = {};
+            window.storage = {
+                get: async (key, shared) => {
+                    const item = localStorage.getItem(shared ? `shared_${key}` : key);
+                    return item ? { key, value: item, shared } : null;
+                },
+                set: async (key, value, shared) => {
+                    localStorage.setItem(shared ? `shared_${key}` : key, value);
+                    return { key, value, shared };
+                },
+                delete: async (key, shared) => {
+                    localStorage.removeItem(shared ? `shared_${key}` : key);
+                    return { key, deleted: true, shared };
+                },
+                list: async (prefix, shared) => {
+                    const keys = Object.keys(localStorage)
+                        .filter(k => k.startsWith(shared ? `shared_${prefix || ''}` : prefix || ''));
+                    return { keys, prefix, shared };
+                }
+            };
+        }
+    </script>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        const { Moon, Sun, Share2, Users, Heart, Sparkles, Repeat, Gift, Loader } = lucide;
+
+        function DhikrApp() {
+            const [darkMode, setDarkMode] = useState(true);
+            const [counts, setCounts] = useState({
+                subhan: 0,
+                hamd: 0,
+                takbir: 0,
+                tahlil: 0,
+                hawqala: 0,
+                istigfar: 0
+            });
+            const [totalUsers, setTotalUsers] = useState(0);
+            const [lastAction, setLastAction] = useState('');
+            const [showShare, setShowShare] = useState(false);
+            const [animate, setAnimate] = useState('');
+            const [loading, setLoading] = useState(true);
+            const [updating, setUpdating] = useState(false);
+
+            useEffect(() => {
+                lucide.createIcons();
+                loadAllCounts();
+            }, []);
+
+            useEffect(() => {
+                lucide.createIcons();
+            }, [counts, darkMode, lastAction]);
+
+            const loadAllCounts = async () => {
+                setLoading(true);
+                try {
+                    const dhikrTypes = ['subhan', 'hamd', 'takbir', 'tahlil', 'hawqala', 'istigfar'];
+                    const newCounts = {};
+                    
+                    for (const type of dhikrTypes) {
+                        try {
+                            const result = await window.storage.get(`dhikr_${type}`, true);
+                            newCounts[type] = result ? parseInt(result.value) : 0;
+                        } catch (error) {
+                            newCounts[type] = 0;
+                        }
+                    }
+                    
+                    try {
+                        const usersResult = await window.storage.get('total_users', true);
+                        setTotalUsers(usersResult ? parseInt(usersResult.value) : 0);
+                    } catch (error) {
+                        setTotalUsers(0);
+                    }
+                    
+                    setCounts(newCounts);
+                } catch (error) {
+                    console.error('خطأ في تحميل البيانات:', error);
+                }
+                setLoading(false);
+            };
+
+            const handleCount = async (type, label) => {
+                if (updating) return;
+                
+                setUpdating(true);
+                setAnimate(type);
+                
+                try {
+                    let currentCount = 0;
+                    try {
+                        const result = await window.storage.get(`dhikr_${type}`, true);
+                        currentCount = result ? parseInt(result.value) : 0;
+                    } catch (error) {
+                        currentCount = 0;
+                    }
+                    
+                    const newCount = currentCount + 1;
+                    await window.storage.set(`dhikr_${type}`, newCount.toString(), true);
+                    
+                    setCounts(prev => ({
+                        ...prev,
+                        [type]: newCount
+                    }));
+                    
+                    setLastAction(label);
+                    
+                    if (newCount % 10 === 0) {
+                        updateTotalUsers();
+                    }
+                    
+                } catch (error) {
+                    console.error('خطأ في التحديث:', error);
+                    alert('حدث خطأ، يرجى المحاولة مرة أخرى');
+                }
+                
+                setTimeout(() => {
+                    setAnimate('');
+                    setUpdating(false);
+                }, 300);
+            };
+
+            const updateTotalUsers = async () => {
+                try {
+                    let currentUsers = 0;
+                    try {
+                        const result = await window.storage.get('total_users', true);
+                        currentUsers = result ? parseInt(result.value) : 0;
+                    } catch (error) {
+                        currentUsers = 0;
+                    }
+                    
+                    const newUsers = currentUsers + 1;
+                    await window.storage.set('total_users', newUsers.toString(), true);
+                    setTotalUsers(newUsers);
+                } catch (error) {
+                    console.error('خطأ في تحديث المستخدمين:', error);
+                }
+            };
+
+            const shareLink = () => {
+                const text = `🌟 شارك في الذكر الجماعي معنا!\n\n✨ بينك وبين الله\n\nانضم لآلاف المسلمين في الذكر\nكل نقرة منك تُضاف للعداد العالمي\n\nالرابط: ${window.location.href}`;
+                
+                if (navigator.share) {
+                    navigator.share({
+                        title: 'بينك وبين الله',
+                        text: text,
+                        url: window.location.href
+                    }).catch(() => {
+                        copyToClipboard();
+                    });
+                } else {
+                    copyToClipboard();
+                }
+            };
+
+            const copyToClipboard = () => {
+                navigator.clipboard.writeText(window.location.href);
+                setShowShare(true);
+                setTimeout(() => setShowShare(false), 3000);
+            };
+
+            const bgGradient = darkMode 
+                ? 'bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900'
+                : 'bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50';
+
+            const cardBg = darkMode ? 'bg-slate-800/40' : 'bg-white/70';
+            const textColor = darkMode ? 'text-white' : 'text-gray-800';
+
+            if (loading) {
+                return (
+                    <div className={`min-h-screen ${bgGradient} flex items-center justify-center`}>
+                        <div className="text-center">
+                            <i data-lucide="loader" className="w-16 h-16 animate-spin text-purple-400 mx-auto mb-4"></i>
+                            <p className="text-white text-xl">جاري تحميل البيانات...</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            const totalDhikr = Object.values(counts).reduce((a, b) => a + b, 0);
+
+            return (
+                <div className={`min-h-screen ${bgGradient} ${textColor} transition-all duration-500`}>
+                    <header className="backdrop-blur-xl bg-white/5 shadow-2xl sticky top-0 z-50 border-b border-white/10">
+                        <div className="max-w-4xl mx-auto px-4 py-5">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-14 h-14 bg-gradient-to-br from-purple-500 via-pink-500 to-rose-500 rounded-2xl flex items-center justify-center shadow-2xl shadow-purple-500/50">
+                                        <i data-lucide="heart" className="w-7 h-7 text-white"></i>
+                                    </div>
+                                    <div>
+                                        <h1 className="text-2xl font-bold tracking-tight">بينك وبين الله</h1>
+                                        <p className="text-xs opacity-60 mt-0.5">الذكر الجماعي المستمر</p>
+                                    </div>
+                                </div>
+                                
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => setDarkMode(!darkMode)}
+                                        className="p-3 rounded-xl bg-white/10 hover:bg-white/20 transition-all backdrop-blur-sm"
+                                    >
+                                        <i data-lucide={darkMode ? "sun" : "moon"} className="w-5 h-5"></i>
+                                    </button>
+                                    <button
+                                        onClick={shareLink}
+                                        className="px-4 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 transition-all shadow-lg flex items-center gap-2 font-medium"
+                                    >
+                                        <i data-lucide="share-2" className="w-4 h-4"></i>
+                                        <span className="hidden sm:inline text-sm">شارك</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </header>
+
+                    <div className="max-w-4xl mx-auto px-4 py-8">
+                        <div className={`${cardBg} backdrop-blur-xl rounded-3xl p-8 border border-white/10 shadow-2xl text-center mb-8`}>
+                            <i data-lucide="gift" className="w-16 h-16 mx-auto mb-4 text-purple-400"></i>
+                            <h2 className="text-3xl font-bold mb-3">انشر لغيرك يكمل عنك</h2>
+                            <p className="text-lg opacity-80 mb-4">كل من يذكر الله من خلال رابطك، يُكتب لك مثل أجره</p>
+                            
+                            <div className="grid grid-cols-2 gap-4 mt-6">
+                                <div className="bg-white/5 rounded-2xl p-4 backdrop-blur-sm">
+                                    <i data-lucide="users" className="w-6 h-6 text-blue-400 mx-auto mb-2"></i>
+                                    <div className="text-3xl font-bold text-blue-400">{totalUsers.toLocaleString('ar-SA')}</div>
+                                    <div className="text-xs opacity-60 mt-1">مستخدم مشارك</div>
+                                </div>
+                                <div className="bg-white/5 rounded-2xl p-4 backdrop-blur-sm">
+                                    <i data-lucide="sparkles" className="w-6 h-6 text-yellow-400 mx-auto mb-2"></i>
+                                    <div className="text-3xl font-bold text-yellow-400">{totalDhikr.toLocaleString('ar-SA')}</div>
+                                    <div className="text-xs opacity-60 mt-1">إجمالي الأذكار</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {lastAction && (
+                            <div className="mb-6 text-center animate-pulse">
+                                <div className={`inline-block ${cardBg} backdrop-blur-xl px-6 py-3 rounded-full border border-white/10 shadow-lg`}>
+                                    <p className="text-sm">
+                                        <span className="opacity-60">آخر ذكر: </span>
+                                        <span className="font-bold text-purple-400">{lastAction}</span>
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="grid md:grid-cols-2 gap-6">
+                            {[
+                                { type: 'subhan', label: 'سبحان الله', color: 'green', icon: 'sparkles' },
+                                { type: 'hamd', label: 'الحمد لله', color: 'blue', icon: 'heart' },
+                                { type: 'takbir', label: 'الله أكبر', color: 'orange', icon: 'sparkles' },
+                                { type: 'tahlil', label: 'لا إله إلا الله', color: 'purple', icon: 'heart' }
+                            ].map(dhikr => (
+                                <button
+                                    key={dhikr.type}
+                                    onClick={() => handleCount(dhikr.type, dhikr.label)}
+                                    disabled={updating}
+                                    className={`${cardBg} backdrop-blur-xl rounded-3xl p-8 border border-white/10 shadow-2xl hover:shadow-${dhikr.color}-500/30 hover:scale-105 transition-all text-center group disabled:opacity-50 disabled:cursor-not-allowed ${animate === dhikr.type ? 'scale-95' : ''}`}
+                                >
+                                    <div className={`w-20 h-20 bg-gradient-to-br from-${dhikr.color}-400 to-${dhikr.color}-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-2xl group-hover:rotate-12 transition-transform`}>
+                                        <i data-lucide={dhikr.icon} className="w-10 h-10 text-white"></i>
+                                    </div>
+                                    <h3 className="text-3xl font-bold mb-4">{dhikr.label}</h3>
+                                    <div className={`text-5xl font-bold bg-gradient-to-r from-${dhikr.color}-400 to-${dhikr.color}-400 bg-clip-text text-transparent mb-2`}>
+                                        {counts[dhikr.type].toLocaleString('ar-SA')}
+                                    </div>
+                                    <p className="text-sm opacity-60">نقرة من جميع المستخدمين</p>
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="mt-8 grid md:grid-cols-2 gap-6">
+                            <button
+                                onClick={() => handleCount('hawqala', 'لا حول ولا قوة إلا بالله')}
+                                disabled={updating}
+                                className={`${cardBg} backdrop-blur-xl rounded-3xl p-8 border border-white/10 shadow-2xl hover:shadow-indigo-500/30 hover:scale-105 transition-all text-center group disabled:opacity-50 disabled:cursor-not-allowed ${animate === 'hawqala' ? 'scale-95' : ''}`}
+                            >
+                                <div className="w-20 h-20 bg-gradient-to-br from-indigo-400 to-violet-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-2xl group-hover:rotate-12 transition-transform">
+                                    <i data-lucide="repeat" className="w-10 h-10 text-white"></i>
+                                </div>
+                                <h3 className="text-2xl font-bold mb-2">الحوقلة</h3>
+                                <p className="text-sm opacity-60 mb-4">لا حول ولا قوة إلا بالله</p>
+                                <div className="text-5xl font-bold bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent mb-2">
+                                    {counts.hawqala.toLocaleString('ar-SA')}
+                                </div>
+                                <p className="text-xs opacity-60">عداد جماعي لا نهائي ✨</p>
+                            </button>
+
+                            <button
+                                onClick={() => handleCount('istigfar', 'أستغفر الله')}
+                                disabled={updating}
+                                className={`${cardBg} backdrop-blur-xl rounded-3xl p-8 border border-white/10 shadow-2xl hover:shadow-rose-500/30 hover:scale-105 transition-all text-center group disabled:opacity-50 disabled:cursor-not-allowed ${animate === 'istigfar' ? 'scale-95' : ''}`}
+                            >
+                                <div className="w-20 h-20 bg-gradient-to-br from-rose-400 to-pink-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-2xl group-hover:rotate-12 transition-transform">
+                                    <i data-lucide="heart" className="w-10 h-10 text-white"></i>
+                                </div>
+                                <h3 className="text-2xl font-bold mb-2">الاستغفار</h3>
+                                <p className="text-sm opacity-60 mb-4">أستغفر الله وأتوب إليه</p>
+                                <div className="text-5xl font-bold bg-gradient-to-r from-rose-400 to-pink-400 bg-clip-text text-transparent mb-2">
+                                    {counts.istigfar.toLocaleString('ar-SA')}
+                                </div>
+                                <p className="text-xs opacity-60">عداد جماعي لا نهائي ✨</p>
+                            </button>
+                        </div>
+
+                        <div className={`${cardBg} backdrop-blur-xl rounded-3xl p-8 border border-white/10 shadow-2xl mt-8 text-center`}>
+                            <i data-lucide="sparkles" className="w-12 h-12 mx-auto mb-4 text-yellow-400"></i>
+                            <h3 className="text-2xl font-bold mb-3">كيف يعمل التطبيق؟</h3>
+                            <div className="space-y-3 text-right max-w-2xl mx-auto">
+                                <p className="opacity-80">✅ كل نقرة منك تُضاف للعداد العالمي الذي يراه الجميع</p>
+                                <p className="opacity-80">✅ البيانات محفوظة بشكل دائم - لن تضيع أبداً</p>
+                                <p className="opacity-80">✅ شارك الرابط مع أصدقائك وعائلتك</p>
+                                <p className="opacity-80">✅ كل من يذكر الله من خلال رابطك، يُكتب لك مثل أجره</p>
+                                <p className="opacity-80">✅ العداد لا نهائي ومستمر على مدار الساعة</p>
+                                <p className="font-bold text-purple-400 mt-4 text-xl">﴿ فَاذْكُرُونِي أَذْكُرْكُمْ ﴾</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {showShare && (
+                        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-green-500 text-white px-6 py-3 rounded-full shadow-2xl z-50 animate-bounce">
+                            <p className="text-sm font-medium">✓ تم نسخ الرابط للمشاركة</p>
+                        </div>
+                    )}
+
+                    <footer className="text-center py-8 mt-8 border-t border-white/10">
+                        <div className="max-w-4xl mx-auto px-4">
+                            <p className="text-sm opacity-60 mb-2">
+                                مطور بـ ❤️ بواسطة <span className="font-bold text-purple-400">@hus9an</span>
+                            </p>
+                            <p className="text-xs opacity-40 mt-2">
+                                🔒 جميع البيانات محفوظة بشكل دائم
+                            </p>
+                        </div>
+                    </footer>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<DhikrApp />);
+    </script>
+</body>
+</html>
